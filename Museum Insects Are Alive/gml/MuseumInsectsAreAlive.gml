@@ -1,9 +1,16 @@
 // Museum Insects Are Alive
 // Nexus: https://www.nexusmods.com/profile/isuckatsdv/mods
 
-#macro MIA_REST_FRAMES 45
-#macro MIA_HOP_FRAMES  12
-#macro MIA_SPEED       0.5
+#macro MIAA_REST_FRAMES   45
+#macro MIAA_HOP_FRAMES    12
+#macro MIAA_SPEED         0.5
+
+#macro MIAA_DRIFT_X       4
+#macro MIAA_DRIFT_UP      2
+#macro MIAA_DRIFT_DOWN    1
+#macro MIAA_DRIFT_SPEED   0.12
+#macro MIAA_PAUSE_MIN     30
+#macro MIAA_PAUSE_VAR     90
 
 function __museum_insects_are_alive_runtime() {
     if (global[$ "__museum_insects_are_alive"] == undefined) {
@@ -76,7 +83,6 @@ function museum_insects_are_alive_plan(_name) {
         return undefined;
     }
 
-    // Both poses exist but neither animates: alternate them as a hop.
     if (_move != undefined && _idle != undefined
         && _move.frames <= 1 && _idle.frames <= 1) {
         museum_insects_are_alive_say_once(_name, _name + " -> hop cycle");
@@ -93,7 +99,102 @@ function museum_insects_are_alive_plan(_name) {
     museum_insects_are_alive_say_once(_name,
         _name + " -> " + _best.name + " (frames: " + string(_best.frames) + ")");
 
-    return { mode: "static", sprite: _best.asset };
+    return { mode: "anim", sprite: _best.asset };
+}
+
+function museum_insects_are_alive_rand(_inst) {
+    _inst.__miaa_seed = ((_inst.__miaa_seed * 75) + 74) mod 65537;
+    return _inst.__miaa_seed / 65537;
+}
+
+function museum_insects_are_alive_pick_target(_inst) {
+    var _rx = museum_insects_are_alive_rand(_inst);
+    var _ry = museum_insects_are_alive_rand(_inst);
+
+    _inst.__miaa_tx = -MIAA_DRIFT_X + _rx * (MIAA_DRIFT_X * 2);
+    _inst.__miaa_ty = -MIAA_DRIFT_UP + _ry * (MIAA_DRIFT_UP + MIAA_DRIFT_DOWN);
+
+    var _dx = _inst.__miaa_tx - _inst.__miaa_ox;
+    if (abs(_dx) > 0.75) {
+        _inst.image_xscale = (_dx < 0) ? -1 : 1;
+    }
+}
+
+function museum_insects_are_alive_place(_inst) {
+    _inst.x = _inst.__miaa_bx + round(_inst.__miaa_ox);
+    _inst.y = _inst.__miaa_by + round(_inst.__miaa_oy);
+}
+
+function museum_insects_are_alive_setup(_inst, _plan) {
+    _inst.__miaa_bx   = _inst.x;
+    _inst.__miaa_by   = _inst.y;
+    _inst.__miaa_ox   = 0;
+    _inst.__miaa_oy   = 0;
+    _inst.__miaa_seed = ((_inst.x * 37) + (_inst.y * 17) + 1) mod 65537;
+    _inst.__miaa_pause = 0;
+
+    _inst.image_xscale = (((_inst.x + _inst.y) mod 2) == 0) ? 1 : -1;
+    museum_insects_are_alive_pick_target(_inst);
+
+    if (_plan.mode == "hop") {
+        _inst.__miaa_mode   = "hop";
+        _inst.__miaa_idle   = _plan.idle;
+        _inst.__miaa_move   = _plan.move;
+        _inst.sprite_index = _plan.idle;
+        _inst.image_speed  = 0;
+        _inst.__miaa_timer  = 1 + ((_inst.x + _inst.y) mod MIAA_REST_FRAMES);
+        return;
+    }
+
+    _inst.__miaa_mode   = "anim";
+    _inst.sprite_index = _plan.sprite;
+    _inst.image_speed  = MIAA_SPEED;
+}
+
+function museum_insects_are_alive_drift(_inst) {
+    if (_inst.__miaa_pause > 0) {
+        _inst.__miaa_pause -= 1;
+        return;
+    }
+
+    var _dx = _inst.__miaa_tx - _inst.__miaa_ox;
+    var _dy = _inst.__miaa_ty - _inst.__miaa_oy;
+    var _d  = sqrt(_dx * _dx + _dy * _dy);
+
+    if (_d <= MIAA_DRIFT_SPEED) {
+        _inst.__miaa_ox = _inst.__miaa_tx;
+        _inst.__miaa_oy = _inst.__miaa_ty;
+        _inst.__miaa_pause = MIAA_PAUSE_MIN
+            + floor(museum_insects_are_alive_rand(_inst) * MIAA_PAUSE_VAR);
+        museum_insects_are_alive_pick_target(_inst);
+    } else {
+        _inst.__miaa_ox += MIAA_DRIFT_SPEED * (_dx / _d);
+        _inst.__miaa_oy += MIAA_DRIFT_SPEED * (_dy / _d);
+    }
+
+    museum_insects_are_alive_place(_inst);
+}
+
+function museum_insects_are_alive_hop(_inst) {
+    _inst.__miaa_timer -= 1;
+    if (_inst.__miaa_timer > 0) return;
+
+    if (_inst.sprite_index == _inst.__miaa_idle) {
+        _inst.sprite_index = _inst.__miaa_move;
+        _inst.__miaa_timer  = MIAA_HOP_FRAMES;
+
+        museum_insects_are_alive_pick_target(_inst);
+        _inst.__miaa_ox = (_inst.__miaa_ox + _inst.__miaa_tx) / 2;
+        _inst.__miaa_oy = (_inst.__miaa_oy + _inst.__miaa_ty) / 2;
+    } else {
+        _inst.sprite_index = _inst.__miaa_idle;
+        _inst.__miaa_timer  = MIAA_REST_FRAMES;
+
+        _inst.__miaa_ox = _inst.__miaa_tx;
+        _inst.__miaa_oy = _inst.__miaa_ty;
+    }
+
+    museum_insects_are_alive_place(_inst);
 }
 
 function museum_insects_are_alive_tick() {
@@ -103,46 +204,28 @@ function museum_insects_are_alive_tick() {
         if (instance_number(_obj) <= 0) return;
 
         with (_obj) {
-            var _mode = self[$ "__mia_mode"];
+            var _mode = self[$ "__miaa_mode"];
 
-            if (_mode == "done") continue;
+            if (_mode == undefined) {
+                var _plan = museum_insects_are_alive_plan(
+                    asset_to_string(self.sprite_index));
+
+                if (_plan == undefined) {
+                    self.__miaa_mode = "skip";
+                    continue;
+                }
+
+                museum_insects_are_alive_setup(self, _plan);
+                continue;
+            }
+
+            if (_mode == "skip") continue;
 
             if (_mode == "hop") {
-                self.__mia_timer -= 1;
-                if (self.__mia_timer <= 0) {
-                    if (self.sprite_index == self.__mia_idle) {
-                        self.sprite_index = self.__mia_move;
-                        self.__mia_timer  = MIA_HOP_FRAMES;
-                    } else {
-                        self.sprite_index = self.__mia_idle;
-                        self.__mia_timer  = MIA_REST_FRAMES;
-                    }
-                }
-                continue;
+                museum_insects_are_alive_hop(self);
+            } else {
+                museum_insects_are_alive_drift(self);
             }
-
-            var _plan = museum_insects_are_alive_plan(
-                asset_to_string(self.sprite_index));
-
-            if (_plan == undefined) {
-                self.__mia_mode = "done";
-                continue;
-            }
-
-            if (_plan.mode == "hop") {
-                self.__mia_mode   = "hop";
-                self.__mia_idle   = _plan.idle;
-                self.__mia_move   = _plan.move;
-                self.sprite_index = _plan.idle;
-                self.image_speed  = 0;
-                // stagger so they don't hop in unison
-                self.__mia_timer  = 1 + ((self.x + self.y) mod MIA_REST_FRAMES);
-                continue;
-            }
-
-            self.__mia_mode   = "done";
-            self.sprite_index = _plan.sprite;
-            self.image_speed  = MIA_SPEED;
         }
     } catch (_e) {
         mmapi_warn_rate_limited("museum_insects_are_alive.tick",
