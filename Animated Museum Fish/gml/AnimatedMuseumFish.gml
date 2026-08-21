@@ -12,7 +12,7 @@
 #macro AMF_SPEED_VAR        0.45
 #macro AMF_RANGE_VAR        0.30
 
-#macro AMF_SWIM_RANGE_X     6
+#macro AMF_SWIM_RANGE_X     5
 #macro AMF_SWIM_RANGE_UP    3
 #macro AMF_SWIM_RANGE_DOWN  1
 #macro AMF_SWIM_SPEED       0.10
