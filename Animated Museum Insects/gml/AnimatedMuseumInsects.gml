@@ -1,6 +1,9 @@
 // Animated Museum Insects
 // Nexus: https://www.nexusmods.com/profile/isuckatsdv/mods
 
+#macro AMI_MOD_ID        "animated_museum_insects"
+#macro AMI_VERSION       "1.1.0"
+
 #macro AMI_REST_FRAMES   45
 #macro AMI_HOP_FRAMES    12
 #macro AMI_SPEED         0.5
@@ -11,14 +14,17 @@
 #macro AMI_DRIFT_SPEED   0.12
 #macro AMI_PAUSE_MIN     30
 #macro AMI_PAUSE_VAR     90
+#macro AMI_EDGE_ALLOW    2
 
 function __animated_museum_insects_runtime() {
     if (global[$ "__animated_museum_insects"] == undefined) {
         global.__animated_museum_insects = {
             registered_hooks: undefined,
+            initialized:      false,
             object:           undefined,
             resolved:         false,
             seen:             {},
+            rows:             {},
         };
     }
     return global.__animated_museum_insects;
@@ -28,8 +34,7 @@ function animated_museum_insects_log_once(_key, _msg) {
     var _rt = __animated_museum_insects_runtime();
     if (_rt.seen[$ _key] != undefined) return;
     _rt.seen[$ _key] = true;
-    mmapi_log_debug("animated_museum_insects", _msg);
-    // mmapi_log_flush("animated_museum_insects");
+    mmapi_log_debug(AMI_MOD_ID, _msg);
 }
 
 function animated_museum_insects_object() {
@@ -39,8 +44,7 @@ function animated_museum_insects_object() {
         try {
             _rt.object = object_reserve("obj_museum_item");
         } catch (_e) {
-            mmapi_log_warn("animated_museum_insects",
-                "object_reserve threw: " + string(_e));
+            mmapi_log_warn(AMI_MOD_ID, "object_reserve threw: " + string(_e));
         }
     }
     return _rt.object;
@@ -79,7 +83,7 @@ function animated_museum_insects_plan(_name) {
     var _idle = animated_museum_insects_candidate(_bare, "_entity_idle");
 
     if (_move == undefined && _idle == undefined) {
-        animated_museum_insects_log_once(_name, "no match for: " + _name);
+        mmapi_log_warn(AMI_MOD_ID, "no entity sprite for: " + _name);
         return undefined;
     }
 
@@ -102,6 +106,26 @@ function animated_museum_insects_plan(_name) {
     return { mode: "anim", sprite: _best.asset };
 }
 
+function animated_museum_insects_scan_rows() {
+    var _rt   = __animated_museum_insects_runtime();
+    var _obj  = animated_museum_insects_object();
+    var _rows = {};
+
+    with (_obj) {
+        var _key = string(round(self.y));
+        var _row = _rows[$ _key];
+
+        if (_row == undefined) {
+            _rows[$ _key] = { lo: self.x, hi: self.x };
+        } else {
+            if (self.x < _row.lo) _row.lo = self.x;
+            if (self.x > _row.hi) _row.hi = self.x;
+        }
+    }
+
+    _rt.rows = _rows;
+}
+
 function animated_museum_insects_rand(_inst) {
     _inst.__ami_seed = ((_inst.__ami_seed * 75) + 74) mod 65537;
     return _inst.__ami_seed / 65537;
@@ -111,7 +135,9 @@ function animated_museum_insects_pick_target(_inst) {
     var _rx = animated_museum_insects_rand(_inst);
     var _ry = animated_museum_insects_rand(_inst);
 
-    _inst.__ami_tx = -AMI_DRIFT_X + _rx * (AMI_DRIFT_X * 2);
+    _inst.__ami_tx = -_inst.__ami_range_left
+        + _rx * (_inst.__ami_range_left + _inst.__ami_range_right);
+
     _inst.__ami_ty = -AMI_DRIFT_UP + _ry * (AMI_DRIFT_UP + AMI_DRIFT_DOWN);
 
     var _dx = _inst.__ami_tx - _inst.__ami_ox;
@@ -126,12 +152,25 @@ function animated_museum_insects_place(_inst) {
 }
 
 function animated_museum_insects_setup(_inst, _plan) {
-    _inst.__ami_bx   = _inst.x;
-    _inst.__ami_by   = _inst.y;
-    _inst.__ami_ox   = 0;
-    _inst.__ami_oy   = 0;
-    _inst.__ami_seed = ((_inst.x * 37) + (_inst.y * 17) + 1) mod 65537;
+    var _rt  = __animated_museum_insects_runtime();
+    var _row = _rt.rows[$ string(round(_inst.y))];
+
+    _inst.__ami_bx    = _inst.x;
+    _inst.__ami_by    = _inst.y;
+    _inst.__ami_ox    = 0;
+    _inst.__ami_oy    = 0;
+    _inst.__ami_seed  = ((_inst.x * 37) + (_inst.y * 17) + 1) mod 65537;
     _inst.__ami_pause = 0;
+
+    if (_row == undefined) {
+        _inst.__ami_range_left  = AMI_DRIFT_X;
+        _inst.__ami_range_right = AMI_DRIFT_X;
+    } else {
+        _inst.__ami_range_left = min(AMI_DRIFT_X,
+            (_inst.x - _row.lo) + AMI_EDGE_ALLOW);
+        _inst.__ami_range_right = min(AMI_DRIFT_X,
+            (_row.hi - _inst.x) + AMI_EDGE_ALLOW);
+    }
 
     _inst.image_xscale = (((_inst.x + _inst.y) mod 2) == 0) ? 1 : -1;
     animated_museum_insects_pick_target(_inst);
@@ -199,9 +238,25 @@ function animated_museum_insects_hop(_inst) {
 
 function animated_museum_insects_tick() {
     try {
+        var _rt = __animated_museum_insects_runtime();
+
+        if (!_rt.initialized) {
+            _rt.initialized = true;
+            mmapi_log_info(AMI_MOD_ID,
+                "Animated Museum Insects v" + AMI_VERSION + " initialized.");
+            mmapi_log_flush(AMI_MOD_ID);
+        }
+
         var _obj = animated_museum_insects_object();
         if (_obj == undefined) return;
         if (instance_number(_obj) <= 0) return;
+
+        var _fresh = false;
+        with (_obj) {
+            if (self[$ "__ami_mode"] == undefined) _fresh = true;
+        }
+
+        if (_fresh) animated_museum_insects_scan_rows();
 
         with (_obj) {
             var _mode = self[$ "__ami_mode"];
@@ -228,8 +283,8 @@ function animated_museum_insects_tick() {
             }
         }
     } catch (_e) {
-        mmapi_warn_rate_limited("animated_museum_insects.tick",
-            "animated_museum_insects", "tick failed: " + string(_e));
+        mmapi_warn_rate_limited("animated_museum_insects.tick", AMI_MOD_ID,
+            "tick failed: " + string(_e));
     }
 }
 
@@ -239,8 +294,7 @@ function animated_museum_insects_register_callbacks() {
     _rt.registered_hooks = true;
 
     mmapi_register(animated_museum_insects_tick);
-    mmapi_log_info("animated_museum_insects", "registered");
 }
 
-mmapi_mod_declare("animated_museum_insects", "1.1.0");
+mmapi_mod_declare(AMI_MOD_ID, AMI_VERSION);
 animated_museum_insects_register_callbacks();
