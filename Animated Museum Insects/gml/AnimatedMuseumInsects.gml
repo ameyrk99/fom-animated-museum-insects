@@ -2,7 +2,7 @@
 // Nexus: https://www.nexusmods.com/profile/isuckatsdv/mods
 
 #macro AMI_MOD_ID        "animated_museum_insects"
-#macro AMI_VERSION       "1.1.0"
+#macro AMI_VERSION       "1.2.0"
 
 #macro AMI_REST_FRAMES   45
 #macro AMI_HOP_FRAMES    12
@@ -73,11 +73,21 @@ function animated_museum_insects_candidate(_bare, _suffix) {
     return undefined;
 }
 
+function animated_museum_insects_alias(_bare) {
+    switch (_bare) {
+        // Sole insect that does not conform to the naming convention
+        case "strobefirefly": return "strobe_dragonfly";
+    }
+    return undefined;
+}
+
 function animated_museum_insects_plan(_name) {
     if (!is_string(_name)) return undefined;
     if (string_pos("spr_ui_item_insect_", _name) != 1) return undefined;
 
     var _bare = string_replace(_name, "spr_ui_item_insect_", "");
+    var _alias = animated_museum_insects_alias(_bare);
+    if (_alias != undefined) _bare = _alias;
 
     var _move = animated_museum_insects_candidate(_bare, "_entity_move");
     var _idle = animated_museum_insects_candidate(_bare, "_entity_idle");
