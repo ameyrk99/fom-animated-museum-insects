@@ -5,9 +5,9 @@
 #macro AMI_HOP_FRAMES    12
 #macro AMI_SPEED         0.5
 
-#macro AMI_DRIFT_X       4
+#macro AMI_DRIFT_X       5
 #macro AMI_DRIFT_UP      2
-#macro AMI_DRIFT_DOWN    1
+#macro AMI_DRIFT_DOWN    3
 #macro AMI_DRIFT_SPEED   0.12
 #macro AMI_PAUSE_MIN     30
 #macro AMI_PAUSE_VAR     90
@@ -116,7 +116,7 @@ function animated_museum_insects_pick_target(_inst) {
 
     var _dx = _inst.__ami_tx - _inst.__ami_ox;
     if (abs(_dx) > 0.75) {
-        _inst.image_xscale = (_dx < 0) ? -1 : 1;
+        _inst.image_xscale = (_dx < 0) ? 1 : -1;
     }
 }
 
@@ -242,5 +242,5 @@ function animated_museum_insects_register_callbacks() {
     mmapi_log_info("animated_museum_insects", "registered");
 }
 
-mmapi_mod_declare("animated_museum_insects", "1.0.0");
+mmapi_mod_declare("animated_museum_insects", "1.1.0");
 animated_museum_insects_register_callbacks();

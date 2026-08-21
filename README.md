@@ -7,7 +7,7 @@ Fields of Mistria mod to animate insects in the museum.
 ## Description
 
 Animate insects in the museum displays to make them feel alive!
-The display mod in the demo is my [Different Museum Mod](https://www.nexusmods.com/fieldsofmistria/mods/976)
+The display mod in the demo is my [Different Museum Displays Mod](https://www.nexusmods.com/fieldsofmistria/mods/976)
 
 I only have 23 insects so far so haven't been able to confirm if everything looks correct for others. If you find an issue please let me know.
 
