@@ -2,7 +2,7 @@
 // Nexus: https://www.nexusmods.com/profile/isuckatsdv/mods
 
 #macro AMF_MOD_ID           "animated_museum_fish"
-#macro AMF_VERSION          "1.0.0"
+#macro AMF_VERSION          "1.1.0"
 #macro AMF_CONFIG_VERSION   1
 
 #macro AMF_TILT_DEADZONE    0.35
@@ -24,14 +24,14 @@
 #macro AMF_CRAB_RANGE_DOWN  1
 #macro AMF_CRAB_SPEED       0.07
 #macro AMF_CRAB_WAVE        0.30
-#macro AMF_CRAB_Y_BIAS      3
+#macro AMF_CRAB_Y_BIAS      1
 
 #macro AMF_URCHIN_RANGE_X   2
 #macro AMF_URCHIN_RANGE_UP  1
 #macro AMF_URCHIN_RANGE_DOWN 1
-#macro AMF_URCHIN_SPEED     0.015
+#macro AMF_URCHIN_SPEED     0.005
 #macro AMF_URCHIN_WAVE      0.80
-#macro AMF_URCHIN_Y_BIAS    3
+#macro AMF_URCHIN_Y_BIAS    1
 
 #macro AMF_MAGIKARP_STEP    12
 #macro AMF_MAGIKARP_PAUSE   120
@@ -99,7 +99,9 @@ function animated_museum_fish_object() {
 
 function animated_museum_fish_classify(_name) {
     if (!is_string(_name)) return undefined;
+
     if (string_pos("spr_ui_item_fish_", _name) != 1) return undefined;
+    if (string_pos("spr_ui_item_fish_bait_", _name) == 1) return undefined;
 
     if (string_pos("sea_urchin", _name) > 0) {
         return {
@@ -284,7 +286,7 @@ function animated_museum_fish_setup(_inst, _class) {
         * animated_museum_fish_jitter(_inst, AMF_RANGE_VAR);
 
     _inst.__amf_dir   = (animated_museum_fish_rand(_inst) < 0.5) ? -1 : 1;
-    _inst.__amf_phase = animated_museum_fish_rand(_inst) * 6.283;
+    _inst.__amf_phase = animated_museum_fish_rand(_inst) * 2 * pi;
     _inst.__amf_tilt  = _class.tilt;
     _inst.__amf_down  = false;
 
